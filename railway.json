@@ -4,8 +4,6 @@
     "builder": "DOCKERFILE"
   },
   "deploy": {
-    "healthcheckPath": "/healthz",
-    "healthcheckTimeout": 600,
     "restartPolicyType": "ALWAYS",
     "restartPolicyMaxRetries": 10
   }
