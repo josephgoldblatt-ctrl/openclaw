@@ -25,3 +25,6 @@ RUN mkdir -p /root/.config && \
 
 # Set Playwright browser path
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
+
+# Use startup script that patches broken :main image with 2026.3.13 from /data volume
+ENTRYPOINT ["/data/openclaw-patch/apply-patch.sh"]
