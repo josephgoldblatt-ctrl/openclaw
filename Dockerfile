@@ -1,18 +1,17 @@
-# Stage 1: grab the working 2026.3.13 package
+# Stage 1: grab just the whatsapp extension from 2026.3.13
 FROM node:22-slim AS patcher
 RUN npm pack openclaw@2026.3.13 --pack-destination /tmp && \
     cd /tmp && tar xzf openclaw-2026.3.13.tgz && rm openclaw-2026.3.13.tgz
 
-# Stage 2: base image with fixes applied via COPY
+# Stage 2: base image — only replace the broken whatsapp extension
 FROM ghcr.io/openclaw/openclaw:main
 USER root
 
-# Replace broken extensions + matching dist from 2026.3.13
-# This fixes the WhatsApp plugin which ships uncompiled TS in :main
-COPY --from=patcher /tmp/package/extensions /app/extensions
-COPY --from=patcher /tmp/package/dist /app/dist
-COPY --from=patcher /tmp/package/openclaw.mjs /app/openclaw.mjs
-COPY --from=patcher /tmp/package/package.json /app/package.json
+# Replace ONLY the broken WhatsApp extension with 2026.3.13's version.
+# The 2026.3.13 extension uses compiled plugin-sdk imports instead of
+# raw ../../../src/ paths that don't exist in the Docker image.
+# Keep everything else (dist, node_modules, package.json) at :main version.
+COPY --from=patcher /tmp/package/extensions/whatsapp /app/extensions/whatsapp
 
 # System dependencies
 RUN apt-get update && \
