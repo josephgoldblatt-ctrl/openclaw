@@ -1,18 +1,20 @@
+# Stage 1: grab the working 2026.3.13 package
+FROM node:22-slim AS patcher
+RUN npm pack openclaw@2026.3.13 --pack-destination /tmp && \
+    cd /tmp && tar xzf openclaw-2026.3.13.tgz && rm openclaw-2026.3.13.tgz
+
+# Stage 2: base image with fixes applied via COPY
 FROM ghcr.io/openclaw/openclaw:main
 USER root
 
-# ── Fix broken WhatsApp extension in :main image ──────────────────────
-# The :main tag ships uncompiled TS extensions that reference /app/src/
-# which doesn't exist. Replace with compiled 2026.3.13 versions at build time.
-RUN npm pack openclaw@2026.3.13 --pack-destination /tmp && \
-    cd /tmp && tar xzf openclaw-2026.3.13.tgz && \
-    rm -rf /app/extensions && cp -r /tmp/package/extensions /app/extensions && \
-    rm -rf /app/dist && cp -r /tmp/package/dist /app/dist && \
-    cp /tmp/package/package.json /app/package.json && \
-    cp /tmp/package/openclaw.mjs /app/openclaw.mjs && \
-    rm -rf /tmp/package /tmp/openclaw-2026.3.13.tgz
+# Replace broken extensions + matching dist from 2026.3.13
+# This fixes the WhatsApp plugin which ships uncompiled TS in :main
+COPY --from=patcher /tmp/package/extensions /app/extensions
+COPY --from=patcher /tmp/package/dist /app/dist
+COPY --from=patcher /tmp/package/openclaw.mjs /app/openclaw.mjs
+COPY --from=patcher /tmp/package/package.json /app/package.json
 
-# ── System dependencies ──────────────────────────────────────────────
+# System dependencies
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       ffmpeg \
@@ -22,14 +24,14 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# ── gog CLI (Google Workspace) ───────────────────────────────────────
+# gog CLI (Google Workspace)
 RUN curl -sL "https://github.com/steipete/gogcli/releases/latest/download/gogcli_0.12.0_linux_amd64.tar.gz" \
     -o /tmp/gog.tar.gz && \
     tar xzf /tmp/gog.tar.gz -C /usr/local/bin gog && \
     chmod +x /usr/local/bin/gog && \
     rm /tmp/gog.tar.gz
 
-# ── Persistent volume symlinks ───────────────────────────────────────
+# Persistent volume symlinks
 RUN mkdir -p /root/.config && \
     ln -sf /data/.config/gogcli /root/.config/gogcli
 
