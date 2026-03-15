@@ -1,7 +1,18 @@
 FROM ghcr.io/openclaw/openclaw:main
 USER root
 
-# Install system dependencies missing from the base image
+# ── Fix broken WhatsApp extension in :main image ──────────────────────
+# The :main tag ships uncompiled TS extensions that reference /app/src/
+# which doesn't exist. Replace with compiled 2026.3.13 versions at build time.
+RUN npm pack openclaw@2026.3.13 --pack-destination /tmp && \
+    cd /tmp && tar xzf openclaw-2026.3.13.tgz && \
+    rm -rf /app/extensions && cp -r /tmp/package/extensions /app/extensions && \
+    rm -rf /app/dist && cp -r /tmp/package/dist /app/dist && \
+    cp /tmp/package/package.json /app/package.json && \
+    cp /tmp/package/openclaw.mjs /app/openclaw.mjs && \
+    rm -rf /tmp/package /tmp/openclaw-2026.3.13.tgz
+
+# ── System dependencies ──────────────────────────────────────────────
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       ffmpeg \
@@ -11,24 +22,15 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install gog (Google Workspace CLI) for Gmail/Calendar/Drive/Sheets
+# ── gog CLI (Google Workspace) ───────────────────────────────────────
 RUN curl -sL "https://github.com/steipete/gogcli/releases/latest/download/gogcli_0.12.0_linux_amd64.tar.gz" \
     -o /tmp/gog.tar.gz && \
     tar xzf /tmp/gog.tar.gz -C /usr/local/bin gog && \
     chmod +x /usr/local/bin/gog && \
     rm /tmp/gog.tar.gz
 
-# Symlink configs from persistent volume
+# ── Persistent volume symlinks ───────────────────────────────────────
 RUN mkdir -p /root/.config && \
     ln -sf /data/.config/gogcli /root/.config/gogcli
 
-# Set Playwright browser path
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
-
-# Wrap openclaw binary to apply patches from /data volume before starting.
-RUN mv /usr/local/bin/openclaw /usr/local/bin/openclaw-real && \
-    printf '#!/bin/bash\nPATCH_DIR="/data/openclaw-patch/patch-files"\nMARKER="/tmp/.openclaw-patched"\nif [ ! -f "$MARKER" ] && [ -d "$PATCH_DIR/dist" ]; then\n  echo "[patch] Applying OpenClaw patch from /data volume..."\n  cp -f "$PATCH_DIR/openclaw.mjs" /app/openclaw.mjs 2>/dev/null\n  cp -f "$PATCH_DIR/package.json" /app/package.json 2>/dev/null\n  rm -rf /app/dist && cp -r "$PATCH_DIR/dist" /app/dist\n  rm -rf /app/extensions && cp -r "$PATCH_DIR/extensions" /app/extensions\n  touch "$MARKER"\n  echo "[patch] Done."\nfi\nexec /usr/local/bin/openclaw-real "$@"\n' > /usr/local/bin/openclaw && \
-    chmod +x /usr/local/bin/openclaw
-
-# Force Docker to use our wrapper as PID 1 (base image ENTRYPOINT gets cached)
-ENTRYPOINT ["/usr/local/bin/openclaw"]
