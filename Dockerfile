@@ -26,7 +26,9 @@ RUN mkdir -p /root/.config && \
 ENV PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright
 
 # Wrap openclaw binary to apply patches from /data volume before starting.
-# Saves original binary, replaces with wrapper that patches once then delegates.
 RUN mv /usr/local/bin/openclaw /usr/local/bin/openclaw-real && \
     printf '#!/bin/bash\nPATCH_DIR="/data/openclaw-patch/patch-files"\nMARKER="/tmp/.openclaw-patched"\nif [ ! -f "$MARKER" ] && [ -d "$PATCH_DIR/dist" ]; then\n  echo "[patch] Applying OpenClaw patch from /data volume..."\n  cp -f "$PATCH_DIR/openclaw.mjs" /app/openclaw.mjs 2>/dev/null\n  cp -f "$PATCH_DIR/package.json" /app/package.json 2>/dev/null\n  rm -rf /app/dist && cp -r "$PATCH_DIR/dist" /app/dist\n  rm -rf /app/extensions && cp -r "$PATCH_DIR/extensions" /app/extensions\n  touch "$MARKER"\n  echo "[patch] Done."\nfi\nexec /usr/local/bin/openclaw-real "$@"\n' > /usr/local/bin/openclaw && \
     chmod +x /usr/local/bin/openclaw
+
+# Force Docker to use our wrapper as PID 1 (base image ENTRYPOINT gets cached)
+ENTRYPOINT ["/usr/local/bin/openclaw"]
