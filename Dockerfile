@@ -1,4 +1,4 @@
-FROM ghcr.io/openclaw/openclaw:2026.3.13
+FROM ghcr.io/openclaw/openclaw:main
 USER root
 
 # Install system dependencies missing from the base image
