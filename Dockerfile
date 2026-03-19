@@ -8,7 +8,6 @@ FROM ghcr.io/openclaw/openclaw:main
 USER root
 
 # Fix: replace app code with 2026.3.13 (keeps :main node_modules intact).
-# The :main tag ships uncompiled WhatsApp TS that crashes on boot.
 COPY --from=patcher /tmp/package/extensions /app/extensions
 COPY --from=patcher /tmp/package/dist /app/dist
 COPY --from=patcher /tmp/package/openclaw.mjs /app/openclaw.mjs
@@ -18,6 +17,7 @@ COPY --from=patcher /tmp/package/package.json /app/package.json
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
       ffmpeg \
+      jq \
       xvfb && \
     PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright \
     node /app/node_modules/playwright-core/cli.js install --with-deps chromium && \
